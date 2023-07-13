@@ -12,9 +12,8 @@ from model.warehouse_graph import *
 
 
 class AGV(object): 
-    def __init__(self, position, agv_id = 0, task = None, velocity = 0.5, time_projection_coeficiient = 1.05): 
+    def __init__(self, agv_id = 0, task = None, velocity = 0.5, time_projection_coeficiient = 1.05): 
         self.agv_id = agv_id
-        self.position = position # cell_id
         self.task = task
         self.velocity = velocity #avg veloity m/s for vehicle while moving (could be described as a function which  inludes accelertion as well)
         self.cell_utilization_list = []
@@ -23,6 +22,15 @@ class AGV(object):
         self.time_projection_coeficiient = time_projection_coeficiient
         self.occupied_tote = False
         self.tote = None
+        self.position = None # cell_id
+
+    def assign_position(self, warehouse_graph, new_cell_id):
+        if self.position is not None:
+            warehouse_graph.cells[self.position].occupied_agv = None 
+        self.position = new_cell_id
+        warehouse_graph.cells[new_cell_id].occupied_agv = self
+
+
 
     def assign_task(self, new_task):
         if self.task is not None: 
@@ -74,11 +82,11 @@ class AGV(object):
                 self.tote_place(warehouse_graph.cells[self.position])    
             # task competed
             
-            prev_cell_utilization = self.cell_utilization_list
-            prev_edge_utilization = self.edge_utilization_list
-            self.cell_utilization_list = [CellUtilization(self.position, start_milis, start_milis + 3 * 1000 ,self.task.priority)]
-            self.edge_utilization_list = []
-            warehouse_graph.update_utilization(self.agv_id, self.cell_utilization_list, prev_cell_utilization,[], prev_edge_utilization)
+            #prev_cell_utilization = self.cell_utilization_list
+            #prev_edge_utilization = self.edge_utilization_list
+            #self.cell_utilization_list = [CellUtilization(self.position, start_milis, start_milis + 3 * 1000 ,self.task.priority)]
+            #self.edge_utilization_list = []
+            #warehouse_graph.update_utilization(self.agv_id, self.cell_utilization_list, prev_cell_utilization,[], prev_edge_utilization)
             self.task = None
             return []
         
@@ -86,16 +94,21 @@ class AGV(object):
             next_cell_move = self.ongoing_route[1] if len(self.ongoing_route) > 1 else self.ongoing_route[0]
             next_cell_occupied = False
             # check is you can move towards the next sell
-            for occupied_agv_id in warehouse_graph.cells[next_cell_move].avg_utilization_slots:  
-                cell_slot = warehouse_graph.cells[next_cell_move].avg_utilization_slots[occupied_agv_id]
-                if(occupied_agv_id != self.agv_id and (start_milis >= cell_slot.time_start or start_milis <= cell_slot.time_start)): 
-                    next_cell_occupied = True
-                    continue
+            if warehouse_graph.cells[next_cell_move].occupied_agv is not None and warehouse_graph.cells[next_cell_move].occupied_agv.agv_id != self.agv_id:
+                next_cell_occupied = True
+            # else:
+            #     for occupied_agv_id in warehouse_graph.cells[next_cell_move].avg_utilization_slots:  
+            #         cell_slot = warehouse_graph.cells[next_cell_move].avg_utilization_slots[occupied_agv_id]
+            #         if(occupied_agv_id != self.agv_id and (start_milis >= cell_slot.time_start or start_milis <= cell_slot.time_start)): 
+            #             next_cell_occupied = True
+            #             continue
             if next_cell_occupied == False:
                 move_time = (warehouse_graph.cells[self.position].length + warehouse_graph.cells[next_cell_move].length) / (2 * self.velocity)
                 if sleep:
-                    time.sleep(move_time) 
-                self.position = next_cell_move
+                    time.sleep(move_time)
+
+                self.assign_position(warehouse_graph, next_cell_move)
+
                 
 
         # update the route to see where agv can move 
@@ -128,6 +141,12 @@ class AGV(object):
         nodes[cell_from].time_arival = start_milis
         heapq.heappush(queue, (0, cell_from))
 
+        # mark occupied by other agvs and adjacet to cell_from nodes as finished
+        for cell_from_adjecent in warehouse_graph.cell_mappings[cell_from]:
+            adjecent = warehouse_graph.cells[cell_from_adjecent]
+            if adjecent.occupied_agv is not None and adjecent.occupied_agv.agv_id != self.agv_id:
+                nodes[cell_from_adjecent].finished=True
+
         while queue:         
             d, node = heapq.heappop(queue)
             
@@ -137,7 +156,8 @@ class AGV(object):
 
             if node in warehouse_graph.cell_mappings: 
                 for next_cell in warehouse_graph.cell_mappings[node]:  
-                    #TODO: do not consider cell wich occupied with tote in case AGV is loaded
+                    
+                    #do not consider cell wich occupied with tote in case AGV is loaded
                     if nodes[next_cell].finished or (self.occupied_tote == True and warehouse_graph.cells[next_cell].occupied_tote == True): 
                         continue
                     # compute the arival time 
@@ -167,10 +187,14 @@ class AGV(object):
             current = nodes[cell_to]
             while cell_from != current.indx:
                 res.append(current.indx)
-                e_util = EdgeUtilization(current.parent.indx, current.indx, current.parent.time_arival, current.time_arival, self.task.priority)
-                c_util = CellUtilization(current.indx, current.time_arival, current.time_arival + 2 * 1000 ,self.task.priority) # edge occupied for 2 sec 
-                edge_utilization_list.append(e_util)
-                cell_utilization_list.append(c_util)
+                # print(current.parent)
+                if current.parent is not None:
+                    e_util = EdgeUtilization(current.parent.indx, current.indx, current.parent.time_arival, current.time_arival, self.task.priority)
+                    edge_utilization_list.append(e_util)
+                else:
+                    break
+                # c_util = CellUtilization(current.indx, current.time_arival, current.time_arival + 2 * 1000 ,self.task.priority) # edge occupied for 2 sec 
+                # cell_utilization_list.append(c_util)
                 current = current.parent
             res.append(cell_from)
             return (res[::-1], cell_utilization_list, edge_utilization_list)

@@ -30,6 +30,7 @@ class Cell(object):
         self.occupied_tote = False if tote is None else True 
         self.tote = tote
         self.occupied_agv = None
+
     
     def set_agv(self, agv):
         with self.lock:

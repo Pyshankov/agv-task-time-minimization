@@ -98,6 +98,8 @@ class WarehouseGraph(object):
         for edge_util in edge_utilization_list:
             self.cell_mappings[edge_util.from_cell][edge_util.to_cell].avg_utilization_slots[agv_id] = edge_util
 
+    
+
     def bfs(self, origin, destination): 
         # bfs search the shortest path, weighs constructed from projection of other agvs
         # update the weighted Graph in the End
