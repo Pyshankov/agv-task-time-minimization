@@ -109,8 +109,7 @@ class AGV(object):
 
                 self.assign_position(warehouse_graph, next_cell_move)
 
-                
-
+            
         # update the route to see where agv can move 
         route, cell_utilization_list, edge_utilization_list = self._bfs(warehouse_graph, self.position, self.task.destinations, start_milis)
         self.ongoing_route = route
