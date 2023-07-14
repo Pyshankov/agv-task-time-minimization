@@ -34,9 +34,15 @@ def build_graph_v1():
         directed_edges.append((idx, idx - 10, 1))
 
     # up and left:     
-    for idx in [69, 59, 60, 49, 50, 39, 40, 29, 30, 19, 20]:
+    for idx in [59, 60, 49, 50, 39, 40, 29, 30, 19, 20]:
         directed_edges.append((idx, idx - 10, 1))
         directed_edges.append((idx, idx - 1, 1))
+
+
+    # up and right:     
+    for idx in [69]:
+        directed_edges.append((idx, idx - 10, 1))
+        directed_edges.append((idx, idx + 1, 1))
 
     # down and right:     
     for idx in [11]:
@@ -45,9 +51,9 @@ def build_graph_v1():
 
     # up, down and left:  
     for idx in [18, 28, 38, 48]:
-        directed_edges.append((idx, idx - 10, 2))
-        directed_edges.append((idx, idx + 10, 2))
-        directed_edges.append((idx, idx - 1, 2))
+        directed_edges.append((idx, idx - 10, 1))
+        directed_edges.append((idx, idx + 10, 1))
+        directed_edges.append((idx, idx - 1, 1))
 
     # up, down and right:  
     for idx in [21, 31, 41]:
@@ -58,15 +64,16 @@ def build_graph_v1():
     #up, down, left, right
     for rng in [range(12, 18), range(22, 28), range(32, 38), range(42, 48)]:
         for idx in rng:
-            directed_edges.append((idx, idx - 10, 2))
-            directed_edges.append((idx, idx + 10, 2))
-            directed_edges.append((idx, idx - 1, 2))
-            directed_edges.append((idx, idx + 1, 2))
+            directed_edges.append((idx, idx - 10, 1))
+            directed_edges.append((idx, idx + 10, 1))
+            directed_edges.append((idx, idx - 1, 1))
+            directed_edges.append((idx, idx + 1, 1))
 
     graph = WarehouseGraph(cells = cell_indx, directed_edges = directed_edges)
     
     for idx in [12,13,22,23,32,33,42,43, 16,17,26,27,36,37,46,47]:
         graph.cells[idx].tote = Tote(idx)
+        graph.cells[idx].occupied_tote = True
     
     return  graph
 

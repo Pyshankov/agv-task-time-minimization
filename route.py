@@ -18,58 +18,44 @@ from model.warehouse_graph import *
 from model.agv import *
 
 def draw_graph(graph1):
-    points = []  
+    points = []
+    positions = {}
     for cell in graph1.cells:
       x = ((cell-1) % 10) 
       y = int((cell-1)/10)
       points.append((x,7-y))
-    
-    G = nx.Graph()
+      positions[cell] = (x,7-y)
+          
+    G = nx.DiGraph()
     
     def add_edge_to_graph(G, e1, e2, w):
         G.add_edge(e1, e2, weight=w)
 
     for frm in graph1.cell_mappings:
         for to in graph1.cell_mappings[frm]: 
-            add_edge_to_graph(G, points[frm-1], points[to-1], 1)
-
-    # you want your own layout
-    pos = nx.spring_layout(G)
-    pos = {point: point for point in points}
-
-    # add axis
-    fig, ax = plt.subplots()
-    nx.draw(G, pos=pos, node_size=500, node_color='k', ax=ax, arrows=True)  # draw nodes and edges
-    nx.draw_networkx_labels(G, pos=pos)  # draw node labels/names
-
-
-    plt.axis("on")
-    ax.set_xlim(-1, 10)
-    ax.set_ylim(-1, 10)
-    ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
-    plt.show()
+            add_edge_to_graph(G, frm, to, 1)
     
+    color_map = []
+    for node in G:
+        if graph1.cells[node].occupied_agv is not None:
+            color_map.append('blue')
+        elif graph1.cells[node].tote is not None:
+          color_map.append('green')
+        elif graph1.cells[node].occupied_agv is not None and graph1.cells[node].occupied_agv.tote is not None:
+          color_map.append('red')
+        else:
+          color_map.append('white')
+
+    plt.clf()
+    nx.draw(G, pos=positions, node_size=500, node_color=color_map, arrows=True)
+    nx.draw_networkx_labels(G, pos=positions)
+    plt.show()
+    plt.pause(0.001)
 
 def main():
     graph1 = build_graph_v1()
-
-    plt.rcParams["figure.figsize"] = [7.50, 3.50]
     plt.rcParams["figure.autolayout"] = True
-    fig = plt.figure()
-    G = nx.DiGraph()
-    G.add_nodes_from(graph1.cells)
-    nx.draw(G, with_labels=True)
-
-    def animate(frame):
-        fig.clear()
-        num1 = random.randint(0, 4)
-        num2 = random.randint(0, 4)
-        G.add_edges_from([(num1, num2)])
-        nx.draw(G, with_labels=True)
-
-    # ani = animation.FuncAnimation(fig, animate, frames=1, interval=1000, repeat=True)
-    # plt.show()
-    # exit()
+    plt.ion()
 
     # graph = WarehouseGraph(cells = range(0,4), directed_edges = [(0,1, 10.0), (1,2, 4.0), (0,2, 15.0), (2,3, 15.0)])
     # print(graph.bfs(0,2))
@@ -77,13 +63,15 @@ def main():
     # print(graph1.bfs(16, 63))
     # print(graph1.bfs(63, 16))
 
-    agv1 = AGV(agv_id = 0, velocity = 3)
-    agv2 = AGV(agv_id = 1, velocity = 3)
-    agv3 = AGV(agv_id = 2, velocity = 3)
+    agv1 = AGV(agv_id = 0, velocity = 5)
+    agv2 = AGV(agv_id = 1, velocity = 5)
+    agv3 = AGV(agv_id = 2, velocity = 5)
 
     agv1.assign_position(graph1, 70)
     agv2.assign_position(graph1, 50)
     agv3.assign_position(graph1, 60)
+
+    draw_graph(graph1)
 
     agv3.assign_task(Task(agv3.position, 13, type = 'TOTE_PICKUP'))
     agv2.assign_task(Task(agv2.position, 17, type = 'TOTE_PICKUP'))
@@ -95,16 +83,19 @@ def main():
         route1 = agv1.execute_task(graph1, sleep = True)
         print(route1)
         print(agv1.position)
+        draw_graph(graph1)
 
         route2 = agv2.execute_task(graph1, sleep = True)
         print(route2)
         print(agv2.position)
+        draw_graph(graph1)
 
         route3 = agv3.execute_task(graph1, sleep = True)
         print(route3)
         print(agv3.position)
         print()
-        time.sleep(1)
+        draw_graph(graph1)
+
 
     agv3.assign_task(Task(agv3.position, 67, type = 'TOTE_TO_PERSON'))
     agv1.assign_task(Task(agv1.position, 63, type = 'TOTE_TO_PERSON'))
@@ -116,16 +107,19 @@ def main():
         route1 = agv1.execute_task(graph1, sleep = True)
         print(route1)
         print(agv1.position)
+        draw_graph(graph1)
 
         route2 = agv2.execute_task(graph1, sleep = True)
         print(route2)
         print(agv2.position)
+        draw_graph(graph1)
 
         route3 = agv3.execute_task(graph1, sleep = True)
         print(route3)
         print(agv3.position)
         print()
-        time.sleep(1)
+        draw_graph(graph1)
+
 
     agv3.assign_task(Task(agv3.position, 13, type = 'TOTE_TO_PLACEMENT'))
     agv1.assign_task(Task(agv1.position, 16, type = 'TOTE_TO_PLACEMENT'))
@@ -137,16 +131,19 @@ def main():
         route1 = agv1.execute_task(graph1, sleep = True)
         print(route1)
         print(agv1.position)
+        draw_graph(graph1)
 
         route2 = agv2.execute_task(graph1, sleep = True)
         print(route2)
         print(agv2.position)
+        draw_graph(graph1)
 
         route3 = agv3.execute_task(graph1, sleep = True)
         print(route3)
         print(agv3.position)
         print()
-        time.sleep(1)
+        draw_graph(graph1)
+
 
 
 if __name__ == '__main__':
