@@ -52,7 +52,153 @@ def draw_graph(graph1):
     plt.show()
     plt.pause(0.001)
 
+def draw_graph2(graph1):
+    points = []
+    positions = {}
+    for cell in graph1.cells:
+      x = ((cell-1) % 15) 
+      y = int((cell-1)/15)
+      points.append((x,4-y))
+      positions[cell] = (x,4-y)
+          
+    G = nx.DiGraph()
+    
+    def add_edge_to_graph(G, e1, e2, w):
+        G.add_edge(e1, e2, weight=w)
+
+    for frm in graph1.cell_mappings:
+        for to in graph1.cell_mappings[frm]: 
+            add_edge_to_graph(G, frm, to, 1)
+    
+    color_map = []
+    for node in G:
+        if graph1.cells[node].occupied_agv is not None:
+            color_map.append('blue')
+        elif graph1.cells[node].tote is not None:
+          color_map.append('green')
+        elif graph1.cells[node].occupied_agv is not None and graph1.cells[node].occupied_agv.tote is not None:
+          color_map.append('red')
+        else:
+          color_map.append('white')
+
+    plt.clf()
+    nx.draw(G, pos=positions, node_size=500, node_color=color_map, arrows=True)
+    nx.draw_networkx_labels(G, pos=positions)
+    plt.show()
+    plt.pause(0.001)
+
 def main():
+    graph1 = build_graph_v2()
+    plt.rcParams["figure.autolayout"] = True
+    plt.ion()   
+
+    agv1 = AGV(agv_id = 0, velocity = 5)
+    agv2 = AGV(agv_id = 1, velocity = 5)
+    agv3 = AGV(agv_id = 2, velocity = 5)
+
+    agv1.assign_position(graph1, 30)
+    agv2.assign_position(graph1, 45)
+    agv3.assign_position(graph1, 60)
+
+    draw_graph2(graph1)
+
+    agv3.assign_task(Task(agv3.position, 3, type = 'TOTE_PICKUP'))
+    agv2.assign_task(Task(agv2.position, 6, type = 'TOTE_PICKUP'))
+    agv1.assign_task(Task(agv1.position, 9, type = 'TOTE_PICKUP'))
+    route1 = agv1.execute_task(graph1, sleep = True)
+    route2 = agv2.execute_task(graph1, sleep = True)
+    route3 = agv3.execute_task(graph1, sleep = True)
+    while len(route1 + route2 +route3)!=0:
+        route1 = agv1.execute_task(graph1, sleep = True)
+        print(route1)
+        print(agv1.position)
+        draw_graph2(graph1)
+
+        route2 = agv2.execute_task(graph1, sleep = True)
+        print(route2)
+        print(agv2.position)
+        draw_graph2(graph1)
+
+        route3 = agv3.execute_task(graph1, sleep = True)
+        print(route3)
+        print(agv3.position)
+        print()
+        draw_graph2(graph1)
+
+
+    agv3.assign_task(Task(agv3.position, 48, type = 'TOTE_TO_PERSON'))
+    agv1.assign_task(Task(agv1.position, 51, type = 'TOTE_TO_PERSON'))
+    agv2.assign_task(Task(agv2.position, 57, type = 'TOTE_TO_PERSON'))
+    route1 = agv1.execute_task(graph1, sleep = True)
+    route2 = agv2.execute_task(graph1, sleep = True)
+    route3 = agv3.execute_task(graph1, sleep = True)
+    while len(route1 + route2 +route3)!=0:
+        route1 = agv1.execute_task(graph1, sleep = True)
+        print(route1)
+        print(agv1.position)
+        draw_graph2(graph1)
+
+        route2 = agv2.execute_task(graph1, sleep = True)
+        print(route2)
+        print(agv2.position)
+        draw_graph2(graph1)
+
+        route3 = agv3.execute_task(graph1, sleep = True)
+        print(route3)
+        print(agv3.position)
+        print()
+        draw_graph2(graph1)
+    
+    agv3.assign_task(Task(agv3.position, 3, type = 'TOTE_TO_PLACEMENT'))
+    agv2.assign_task(Task(agv2.position, 6, type = 'TOTE_TO_PLACEMENT'))
+    agv1.assign_task(Task(agv1.position, 9, type = 'TOTE_TO_PLACEMENT'))
+    route1 = agv1.execute_task(graph1, sleep = True)
+    route2 = agv2.execute_task(graph1, sleep = True)
+    route3 = agv3.execute_task(graph1, sleep = True)
+    while len(route1 + route2 +route3)!=0:
+        route1 = agv1.execute_task(graph1, sleep = True)
+        print(route1)
+        print(agv1.position)
+        draw_graph2(graph1)
+
+        route2 = agv2.execute_task(graph1, sleep = True)
+        print(route2)
+        print(agv2.position)
+        draw_graph2(graph1)
+
+        route3 = agv3.execute_task(graph1, sleep = True)
+        print(route3)
+        print(agv3.position)
+        print()
+        draw_graph2(graph1)
+
+
+    agv1.assign_task(Task(agv1.position, 30, type = 'TOTE_PICKUP'))
+    agv3.assign_task(Task(agv3.position, 45, type = 'TOTE_PICKUP'))
+    agv2.assign_task(Task(agv2.position, 60, type = 'TOTE_PICKUP'))
+    route1 = agv1.execute_task(graph1, sleep = True)
+    route2 = agv2.execute_task(graph1, sleep = True)
+    route3 = agv3.execute_task(graph1, sleep = True)
+    while len(route1 + route2 +route3 )!=0:
+        route1 = agv1.execute_task(graph1, sleep = True)
+        print(route1)
+        print(agv1.position)
+        draw_graph2(graph1)
+
+        route2 = agv2.execute_task(graph1, sleep = True)
+        print(route2)
+        print(agv2.position)
+        draw_graph2(graph1)
+
+        route3 = agv3.execute_task(graph1, sleep = True)
+        print(route3)
+        print(agv3.position)
+        print()
+        draw_graph2(graph1)
+    
+
+
+def main1():
     graph1 = build_graph_v1()
     plt.rcParams["figure.autolayout"] = True
     plt.ion()

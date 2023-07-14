@@ -77,7 +77,61 @@ def build_graph_v1():
     
     return  graph
 
+def build_graph_v2(): 
+    cell_indx = range(1,61)
+    directed_edges = []
 
+    directed_edges.append((3, 18, 1))
+    directed_edges.append((18, 3, 1))
+    directed_edges.append((6, 21, 1))
+    directed_edges.append((21, 6, 1))
+    directed_edges.append((9, 24, 1))
+    directed_edges.append((24, 9, 1))
+    directed_edges.append((12, 27, 1))
+    directed_edges.append((27, 12, 1))
+
+        # to left only:  
+    for idx in range (17,31): 
+        directed_edges.append((idx, idx - 1, 1))
+
+    # to right:  
+    for idx in range (47,61): 
+        directed_edges.append((idx - 1, idx, 1))
+    
+    # to right:  
+    for idx in range (32,46): 
+        directed_edges.append((idx - 1, idx, 1))
+
+    directed_edges.append((34, 19, 1))
+    directed_edges.append((16, 31, 1))
+    directed_edges.append((20, 35, 1))
+    directed_edges.append((37, 22, 1))
+    directed_edges.append((23, 38, 1))
+    directed_edges.append((40, 25, 1))
+    directed_edges.append((26, 41, 1))
+    directed_edges.append((43, 28, 1))
+    directed_edges.append((44, 29, 1))
+    directed_edges.append((45, 30, 1))
+
+    directed_edges.append((31, 46, 1))
+    directed_edges.append((48, 33, 1))
+    directed_edges.append((35, 50, 1))    
+    directed_edges.append((51, 36, 1))
+    directed_edges.append((38, 53, 1))
+    directed_edges.append((54, 39, 1))
+    directed_edges.append((41, 56, 1))
+    directed_edges.append((57, 42, 1))
+    directed_edges.append((58, 43, 1))
+    directed_edges.append((59, 44, 1))
+    directed_edges.append((60, 45, 1))
+
+    graph = WarehouseGraph(cells = cell_indx, directed_edges = directed_edges)
+
+    for idx in [3,6,9,12]:
+        graph.cells[idx].tote = Tote(idx)
+        graph.cells[idx].occupied_tote = True
+
+    return  graph
 
 class WarehouseGraph(object): 
     def __init__(self, cells = range(0,3), directed_edges = [(0,1, 10.0), (1,2, 50.0), (0,2, 10.0)]):
