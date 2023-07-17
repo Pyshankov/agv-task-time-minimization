@@ -7,76 +7,6 @@ import  heapq
 import json
 from model.models import *
 
-def build_graph_v1(): 
-    cell_indx = range(1,71)
-    directed_edges = []
-    # to left only:  
-    for idx in range (9,11): 
-        directed_edges.append((idx, idx - 1, 1))
-
-    # to right only:  
-    for idx in range (62,70): 
-        directed_edges.append((idx - 1, idx, 1))
-    # down only:  
-    for idx in [1, 51]:
-        directed_edges.append((idx, idx + 10, 1))
-
-    # left and down: 
-    for idx in range (52,59): 
-        directed_edges.append((idx, idx - 1, 1))
-        directed_edges.append((idx, idx + 10, 1))
-    for idx in range (2,9): 
-        directed_edges.append((idx, idx - 1, 1))
-        directed_edges.append((idx, idx + 10, 1))
-
-    # up only: 
-    for idx in [ 70]:
-        directed_edges.append((idx, idx - 10, 1))
-
-    # up and left:     
-    for idx in [59, 60, 49, 50, 39, 40, 29, 30, 19, 20]:
-        directed_edges.append((idx, idx - 10, 1))
-        directed_edges.append((idx, idx - 1, 1))
-
-
-    # up and right:     
-    for idx in [69]:
-        directed_edges.append((idx, idx - 10, 1))
-        directed_edges.append((idx, idx + 1, 1))
-
-    # down and right:     
-    for idx in [11]:
-        directed_edges.append((idx, idx + 10, 1))
-        directed_edges.append((idx, idx + 1, 1))
-
-    # up, down and left:  
-    for idx in [18, 28, 38, 48]:
-        directed_edges.append((idx, idx - 10, 1))
-        directed_edges.append((idx, idx + 10, 1))
-        directed_edges.append((idx, idx - 1, 1))
-
-    # up, down and right:  
-    for idx in [21, 31, 41]:
-        directed_edges.append((idx, idx - 10, 1))
-        directed_edges.append((idx, idx + 10, 1))
-        directed_edges.append((idx, idx + 1, 1))
-    
-    #up, down, left, right
-    for rng in [range(12, 18), range(22, 28), range(32, 38), range(42, 48)]:
-        for idx in rng:
-            directed_edges.append((idx, idx - 10, 1))
-            directed_edges.append((idx, idx + 10, 1))
-            directed_edges.append((idx, idx - 1, 1))
-            directed_edges.append((idx, idx + 1, 1))
-
-    graph = WarehouseGraph(cells = cell_indx, directed_edges = directed_edges)
-    
-    for idx in [12,13,22,23,32,33,42,43, 16,17,26,27,36,37,46,47]:
-        graph.cells[idx].tote = Tote(idx)
-        graph.cells[idx].occupied_tote = True
-    
-    return  graph
-
 def build_graph_v2(): 
     cell_indx = range(1,61)
     directed_edges = []
@@ -135,6 +65,7 @@ def build_graph_v2():
 
 class WarehouseGraph(object): 
     def __init__(self, cells = range(0,3), directed_edges = [(0,1, 10.0), (1,2, 50.0), (0,2, 10.0)]):
+        self.lock = RLock()
         self.cells = {}
         self.cell_mappings = {}
         for cell in cells:
@@ -143,23 +74,77 @@ class WarehouseGraph(object):
             if d_edge[0] not in self.cell_mappings:
                 self.cell_mappings[d_edge[0]] = {} 
             self.cell_mappings[d_edge[0]][d_edge[1]] = DirectedEdge(self.cells[d_edge[0]], self.cells[d_edge[1]], d_edge[2]) 
+        
+        #agv_cell_utilization_slots = {} # k:cell_id -> {k:agv_id -> utilization}
+        #agv_edge_utilization_slots = {} # k:from_cell -> {k:to_cell -> {k:agv_id -> utilization}}
 
+    def lock(self):
+        self.lock.acquire() 
+    
+    def unlock(self):
+        self.lock.release() 
+    
     # use to define a new utilization for AGV updated route within the shared state to use it later in route planning
     def update_utilization(self, agv_id, cell_utilization_list, prev_cell_utilization_list, edge_utilization_list, prev_edge_utilization_list):
-        # remove old # remove old utolization for cells within the route for particular AGV for cells within the route for particular AGV
-        for prev_cell_util in prev_cell_utilization_list:
-            self.cells[prev_cell_util.cell_id].avg_utilization_slots.pop(agv_id) 
-        # add new utilization for cells within the route for particular AGV
-        for cell_util in cell_utilization_list:
-            self.cells[cell_util.cell_id].avg_utilization_slots[agv_id] = cell_util 
-        # remove old utilization for edges within the route for particular AGV
-        for prev_edge_util in prev_edge_utilization_list:
-            self.cell_mappings[prev_edge_util.from_cell][prev_edge_util.to_cell].avg_utilization_slots.pop(agv_id)
-        # add new utilization for edges within the route for particular AGV
-        for edge_util in edge_utilization_list:
-            self.cell_mappings[edge_util.from_cell][edge_util.to_cell].avg_utilization_slots[agv_id] = edge_util
+        with self.lock:
+            # remove old # remove old utolization for cells within the route for particular AGV for cells within the route for particular AGV
+            for prev_cell_util in prev_cell_utilization_list:
+                self.cells[prev_cell_util.cell_id].avg_utilization_slots.pop(agv_id) 
+            # add new utilization for cells within the route for particular AGV
+            for cell_util in cell_utilization_list:
+                self.cells[cell_util.cell_id].avg_utilization_slots[agv_id] = cell_util 
+            # remove old utilization for edges within the route for particular AGV
+            for prev_edge_util in prev_edge_utilization_list:
+                self.cell_mappings[prev_edge_util.from_cell][prev_edge_util.to_cell].avg_utilization_slots.pop(agv_id)
+            # add new utilization for edges within the route for particular AGV
+            for edge_util in edge_utilization_list:
+                self.cell_mappings[edge_util.from_cell][edge_util.to_cell].avg_utilization_slots[agv_id] = edge_util
 
+    def occupy_singe_cell(self, agv, timestamp_from = None, cell_id = None): # consider only while 
+        with self.lock:
+            if cell_id is None:
+                cell_id = agv.position   
+            self.cells[cell_id].avg_utilization_slots[agv.agv_id] = CellUtilization(agv.agv_id, cell_id, timestamp_from, float('inf'), 0) 
+            # if agv.position is not None:
+            #     self.cells[agv.position].occupied_agv = None
+            # agv.assign_position(cell_id)
+            # self.cells[cell_id].occupied_agv = agv
     
+    # def check_cell_occupied(self, agv, cell_id):
+    #     with self.lock:
+    #         if self.cells[cell_id].occupied_agv is not None and self.cells[cell_id].occupied_agv.agv_id != agv.agv_id:
+    #             return True 
+    #         else:
+    #             return False
+
+    # def update_edge_utilization(self, agv_id, cell_from, cell_to, timestamp_from, timestamp_to):
+    #     with self.lock:
+    #         self.cell_mappings[cell_from][cell_to].avg_utilization_slots[agv_id] = EdgeUtilization(agv_id, cell_from, cell_to, timestamp_from, timestamp_to, 1)
+    
+    def get_edge_length(self, cell_from, cell_to): 
+        length = 0
+        with self.lock:
+            length = self.cell_mappings[cell_from][cell_to].length
+        return length
+
+
+
+    def get_occupied_timeslots_edges(self, agv_id, cell_from, cell_to, bidirectional = False):
+        utilizations = []  
+        with self.lock:
+            cell_from_list = []
+            if cell_from is None:
+                cell_from_list = list(self.cell_mappings.keys())
+            else:
+                cell_from_list = [cell_from]
+            for cell_from_idx in cell_from_list:
+                if cell_from_idx in self.cell_mappings[cell_from_idx]:
+                    for agv_idx in self.cell_mappings[cell_from_idx][cell_to].avg_utilization_slots:
+                        utiliz = self.cell_mappings[cell_from_idx][cell_to].avg_utilization_slots[agv_idx]
+                        # if utiliz.agv_id != agv_id:
+                        utilizations.append(utiliz)
+        return utilizations
+
 
     def bfs(self, origin, destination): 
         # bfs search the shortest path, weighs constructed from projection of other agvs
@@ -175,18 +160,17 @@ class WarehouseGraph(object):
         queue = [] 
         for cell in self.cells:
             nodes[cell]=Node(indx = cell)
-        
+
         nodes[origin].d = 0
         heapq.heappush(queue, (0, origin))
 
         while queue:         
-            d, node =  heapq.heappop(queue)
+            d, node = heapq.heappop(queue)
             
             if nodes[node].finished or nodes[destination].finished:
                 continue
-            nodes[node].finished=True
-            # print ((d, node), end = " ")
 
+            nodes[node].finished=True
             if node in self.cell_mappings: 
                 for next_cell in self.cell_mappings[node]:  
                     if nodes[next_cell].finished:
@@ -196,7 +180,6 @@ class WarehouseGraph(object):
                         nodes[next_cell].d = new_d
                         nodes[next_cell].parent = nodes[node]
                         heapq.heappush(queue,(new_d,next_cell))
-        
         res =  []
         if nodes[destination].finished:
             current = nodes[destination]
@@ -207,9 +190,6 @@ class WarehouseGraph(object):
             return res[::-1]
         else:
             return []
-
-    def str(self):
-        return json.dumps(self.__dict__)
 
 
 

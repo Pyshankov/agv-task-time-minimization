@@ -1,18 +1,16 @@
 
 
-
 import imutils
-
 import numpy as np
 import cv2 as cv
 import  heapq
-
 from model.models import *
 from model.warehouse_graph import *
 
 
 class AGV(object): 
-    def __init__(self, agv_id = 0, task = None, velocity = 0.5, time_projection_coeficiient = 1.05): 
+    MAX_VELOCITY = 2
+    def __init__(self, agv_id = 0, task = None, velocity = 0.0, time_projection_coeficiient = 1.05): 
         self.agv_id = agv_id
         self.task = task
         self.velocity = velocity #avg veloity m/s for vehicle while moving (could be described as a function which  inludes accelertion as well)
@@ -20,186 +18,104 @@ class AGV(object):
         self.edge_utilization_list = []
         self.ongoing_route = []
         self.time_projection_coeficiient = time_projection_coeficiient
-        self.occupied_tote = False
         self.tote = None
         self.position = None # cell_id
 
-    def assign_position(self, warehouse_graph, new_cell_id):
-        if self.position is not None:
-            warehouse_graph.cells[self.position].occupied_agv = None 
+    def assign_position(self, new_cell_id):
         self.position = new_cell_id
-        warehouse_graph.cells[new_cell_id].occupied_agv = self
-
 
 
     def assign_task(self, new_task):
-        if self.task is not None: 
-            return False
-        if self.position != new_task.origin: 
-            return False
-        if self.occupied_tote == True and new_task.type == 'TOTE_TO_PERSON': 
-            return False
-        if self.occupied_tote == True and new_task.type == 'TOTE_PICKUP':
-            return False
-        self.task = new_task
-        return True
+        if(self.task is None): 
+            self.task = new_task
+        else: 
+            raise Exception(f'AGV: {self.agv_id} has another task assigned.')
     
-    def tote_pickup(self, cell):
-        if  cell.tote is None: 
-            # nothing to pick up
-            return
-        self.occupied_tote = True
-        self.tote = cell.tote
-        cell.occupied_tote = False
-        cell.tote = None
-    
-    def tote_place(self, cell): 
-        if self.tote is None: 
-            # nothing to place
-            return 
-        if self.tote is not None and cell.tote is not None:
-            # not possible
-            return 
-        self.occupied_tote = False
-        cell.occupied_tote = True
-        cell.tote = self.tote
+    def tote_pick(self, tote):
+        self.tote = tote
+
+    def tote_place(self): 
         self.tote = None
 
-
-    def execute_task(self, warehouse_graph, sleep = True): 
-        if self.task is None: 
+    def execute_task(self, warehouse_graph, start_milis = int(round(time.time() * 1000))): 
+        if self.task is None or self.task.is_finished(): 
+            print("none")
             # no task, no actions
             return []
+        if self.task.is_pending():
+            started = self.task.start(self)
+            print("pending")
+            if not started:
+                return []
+        if self.task.is_in_progress():
+            finished = self.task.finish(self)
+            if finished:
+                print("finished")
+                return []
         
-        start_milis = int(round(time.time() * 1000))
-        
-        if self.position == self.task.origin and self.task.type == 'TOTE_TO_PERSON' and warehouse_graph.cells[self.position].tote is not None: 
-            # task start
-            self.tote_pickup(warehouse_graph.cells[self.position])
+        if len(self.ongoing_route) == 0 and len(self.task.destinations) > 0:
+            self.ongoing_route = warehouse_graph.bfs(self.position, self.task.destinations[0])
 
-        if self.position == self.task.destinations: 
-            if self.task.type == 'TOTE_TO_PLACEMENT':
-                self.tote_place(warehouse_graph.cells[self.position])    
-            # task competed
+        if len(self.ongoing_route) == 1 and self.position == self.ongoing_route[0]:
+            # print(self.ongoing_route)
+            # print(self.position)
+            self.ongoing_route = []
+            return self.ongoing_route
+
+        next_cell = self.ongoing_route[1] 
+        next_next_cell = None if len(self.ongoing_route) < 3 else self.ongoing_route[2] 
+
+        with warehouse_graph.lock:
+            new_edge_utils = []
+            next_utilizations = warehouse_graph.get_occupied_timeslots_edges(self.agv_id, None, next_cell)
+            occupied_by_other_agvs = False
+            for util in next_utilizations:
+                if util.agv_id != self.agv_id:
+                    occupied_by_other_agvs = True
+
+            if occupied_by_other_agvs is True:
+                ongoing_util = self.edge_utilization_list[0]
+                new_edge_utils.append(EdgeUtilization(self.agv_id, 0.0, ongoing_util.from_cell, self.position, start_milis, float('inf')))
+                self.velocity = 0.0 # stop the vehicle
+            else:
+                length_m = warehouse_graph.get_edge_length(self.position, next_cell)
+                time_end = start_milis + (length_m / AGV.MAX_VELOCITY) * 1000
+                if next_next_cell is not None:
+                    next_next_utilizations = warehouse_graph.get_occupied_timeslots_edges(self.agv_id, next_cell, next_next_cell)
+                    for util in next_next_utilizations:
+                        if self.agv_id != util.agv_id and (start_milis <= util.time_end) and (time_end >= util.time_start):
+                            if(util.time_end > time_end):
+                                time_end = util.time_end
+                    self.velocity = length_m / (time_end - start_milis)
+                new_edge_utils.append(EdgeUtilization(self.agv_id, self.velocity, self.position, next_cell, start_milis, time_end + 2000))
+                if next_next_cell is not None:
+                    l = warehouse_graph.get_edge_length(next_cell, next_next_cell)
+                    time_end2 = time_end + (l / AGV.MAX_VELOCITY) * 1000
+                    new_edge_utils.append(EdgeUtilization(self.agv_id, AGV.MAX_VELOCITY, next_cell, next_next_cell, time_end, time_end2 + 2000))
             
-            #prev_cell_utilization = self.cell_utilization_list
-            #prev_edge_utilization = self.edge_utilization_list
-            #self.cell_utilization_list = [CellUtilization(self.position, start_milis, start_milis + 3 * 1000 ,self.task.priority)]
-            #self.edge_utilization_list = []
-            #warehouse_graph.update_utilization(self.agv_id, self.cell_utilization_list, prev_cell_utilization,[], prev_edge_utilization)
-            self.task = None
-            return []
+            prev_edge_utilization_list = self.edge_utilization_list
+            self.edge_utilization_list = new_edge_utils
+            warehouse_graph.update_utilization(self.agv_id, self.cell_utilization_list, self.cell_utilization_list, new_edge_utils, prev_edge_utilization_list)
         
-        if len(self.ongoing_route) != 0:
-            next_cell_move = self.ongoing_route[1] if len(self.ongoing_route) > 1 else self.ongoing_route[0]
-            next_cell_occupied = False
-            # check is you can move towards the next sell
-            if warehouse_graph.cells[next_cell_move].occupied_agv is not None and warehouse_graph.cells[next_cell_move].occupied_agv.agv_id != self.agv_id:
-                next_cell_occupied = True
-            # else:
-            #     for occupied_agv_id in warehouse_graph.cells[next_cell_move].avg_utilization_slots:  
-            #         cell_slot = warehouse_graph.cells[next_cell_move].avg_utilization_slots[occupied_agv_id]
-            #         if(occupied_agv_id != self.agv_id and (start_milis >= cell_slot.time_start or start_milis <= cell_slot.time_start)): 
-            #             next_cell_occupied = True
-            #             continue
-            if next_cell_occupied == False:
-                move_time = (warehouse_graph.cells[self.position].length + warehouse_graph.cells[next_cell_move].length) / (2 * self.velocity)
-                if sleep:
-                    time.sleep(move_time)
+        # check_can_move = warehouse_graph.check_cell_occupied(self, next_cell) == True
+        # warehouse_graph.unlock()
+        print(self.ongoing_route)
+        print(self.position)
 
-                self.assign_position(warehouse_graph, next_cell_move)
+        # move vehicle
+        if self.velocity != 0.0 : 
+            util = self.edge_utilization_list[0]
+            time1 = (util.time_end - util.time_start)/1000
+            # print(time1)
+            time.sleep(time1)
+            self.position = util.to_cell
+            # warehouse_graph.occupy_singe_cell(self, cell_id=util.to_cell)
+            self.ongoing_route.pop(0)
+        else:  
+            time.sleep(1)
 
-            
-        # update the route to see where agv can move 
-        route, cell_utilization_list, edge_utilization_list = self._bfs(warehouse_graph, self.position, self.task.destinations, start_milis)
-        self.ongoing_route = route
-        prev_cell_utilization = self.cell_utilization_list
-        prev_edge_utilization = self.edge_utilization_list
-        self.cell_utilization_list = cell_utilization_list
-        self.edge_utilization_list = edge_utilization_list
-
-        warehouse_graph.update_utilization(self.agv_id, cell_utilization_list, prev_cell_utilization, edge_utilization_list, prev_edge_utilization)
-
-        return route
+        return self.ongoing_route
     
-    def _bfs(self, warehouse_graph, cell_from, cell_to, start_milis = int(round(time.time() * 1000))): 
-        class Node:
-            def __init__(self, indx):
-                self.d=float('inf') #current distance from source node
-                self.parent=None
-                self.finished=False
-                self.indx = indx
-                self.time_arival = None; 
-        
-        nodes = {}
-        queue = [] 
-        for cell in warehouse_graph.cells:
-            nodes[cell]=Node(indx = cell)
-        
-        nodes[cell_from].d = 0
-        nodes[cell_from].time_arival = start_milis
-        heapq.heappush(queue, (0, cell_from))
-
-        # mark occupied by other agvs and adjacet to cell_from nodes as finished
-        for cell_from_adjecent in warehouse_graph.cell_mappings[cell_from]:
-            adjecent = warehouse_graph.cells[cell_from_adjecent]
-            if adjecent.occupied_agv is not None and adjecent.occupied_agv.agv_id != self.agv_id:
-                nodes[cell_from_adjecent].finished=True
-
-        while queue:         
-            d, node = heapq.heappop(queue)
-            
-            if nodes[node].finished:
-                continue
-            nodes[node].finished=True
-
-            if node in warehouse_graph.cell_mappings: 
-                for next_cell in warehouse_graph.cell_mappings[node]:  
-                    
-                    #do not consider cell wich occupied with tote in case AGV is loaded
-                    if nodes[next_cell].finished or (self.occupied_tote == True and warehouse_graph.cells[next_cell].occupied_tote == True): 
-                        continue
-                    # compute the arival time 
-                    delta_seconds = self.time_projection_coeficiient * (warehouse_graph.cells[next_cell].length + warehouse_graph.cells[node].length) / (2 * self.velocity)
-                    start_ms = nodes[node].time_arival
-                    end_ms = start_ms + delta_seconds * 1000 
-                    #TODO: consider cell occupancy and delay end ms untill max cell ocupancy timeslot which overlaps with existing
-                    # calculate weights of utilization / occupancy
-                    cummulated_weight = 0 
-                    for agv_id in warehouse_graph.cell_mappings[node][next_cell].avg_utilization_slots:
-                        edge_util = warehouse_graph.cell_mappings[node][next_cell].avg_utilization_slots[agv_id]
-                        if self.agv_id != agv_id and (start_ms <= edge_util.time_end) and (end_ms >= edge_util.time_start):
-                            cummulated_weight = cummulated_weight + 1
-                        
-                    new_d = d + cummulated_weight * warehouse_graph.cell_mappings[node][next_cell].weight #+ delta_seconds
-                    if new_d < nodes[next_cell].d:
-                        nodes[next_cell].d = new_d
-                        nodes[next_cell].time_arival = end_ms
-                        nodes[next_cell].parent = nodes[node]
-                        heapq.heappush(queue,(new_d,next_cell))
-        
-        res =  []
-        cell_utilization_list = []
-        edge_utilization_list = []
-
-        if nodes[cell_to].finished:
-            current = nodes[cell_to]
-            while cell_from != current.indx:
-                res.append(current.indx)
-                # print(current.parent)
-                if current.parent is not None:
-                    e_util = EdgeUtilization(current.parent.indx, current.indx, current.parent.time_arival, current.time_arival, self.task.priority)
-                    edge_utilization_list.append(e_util)
-                else:
-                    break
-                # c_util = CellUtilization(current.indx, current.time_arival, current.time_arival + 2 * 1000 ,self.task.priority) # edge occupied for 2 sec 
-                # cell_utilization_list.append(c_util)
-                current = current.parent
-            res.append(cell_from)
-            return (res[::-1], cell_utilization_list, edge_utilization_list)
-        else:
-            return ([], [], [])
-
 
 
     
