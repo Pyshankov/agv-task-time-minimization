@@ -6,6 +6,7 @@ import cv2 as cv
 import  heapq
 from model.models import *
 from model.warehouse_graph import *
+import math
 
 
 class AGV(object): 
@@ -56,7 +57,7 @@ class AGV(object):
         ut = ''
         if(len(self.edge_utilization_list) > 0):
             ut = self.edge_utilization_list[0]
-        print(f'time:{start_milis} agv: {self.agv_id} velocity: {self.velocity}, position: {self.position}, route: {self.ongoing_route}')
+        print(f'time:{start_milis} agv: {self.agv_id} velocity: {self.velocity}, position: {self.position}, route: {self.ongoing_route}, util: {ut}')
 
         with warehouse_graph.lock:
             new_edge_utils = []
@@ -79,8 +80,15 @@ class AGV(object):
                 time_end = float('inf')
                 new_velocity = 0.0
             elif len(warehouse_graph.get_occupied_timeslots_edges(self.agv_id, None, next_cell)) > 0:
-                time_end = float('inf')
-                new_velocity = 0.0
+                all_blocked = True
+                for util in warehouse_graph.get_occupied_timeslots_edges(self.agv_id, None, next_cell):
+                    all_blocked = all_blocked and math.isinf(util.time_end)
+                if all_blocked:
+                    time_end = start_milis + (length_m / AGV.MAX_VELOCITY) * 1000 
+                    new_velocity = AGV.MAX_VELOCITY
+                else:
+                    time_end = float('inf')
+                    new_velocity = 0.0
             else: 
                 next_next_cell = None if len(self.ongoing_route) < 3 else self.ongoing_route[2] 
                 time_end = start_milis + (length_m / AGV.MAX_VELOCITY) * 1000 
@@ -96,7 +104,7 @@ class AGV(object):
             
                     #agv not have an intent to visit the doc, 
                     # and another agv from doc not started moving yet - we can bypass
-                    if warehouse_graph.check_bidirectional(next_cell)\
+                    elif warehouse_graph.check_bidirectional(next_cell)\
                         and warehouse_graph.check_bidirectional(next_next_cell) is False\
                         and len(warehouse_graph.get_occupied_timeslots_edges(self.agv_id, None, next_cell)) == 0\
                         and self.ongoing_route[-1]:

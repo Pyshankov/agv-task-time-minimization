@@ -77,6 +77,7 @@ def main():
     agv4 = AGV(agv_id = 3) # yellow
     graph1.occupy_singe_cell(agv4, cell_id=59)
 
+
     draw_graph2(graph1, agv1, agv2, agv3, agv4)
 
 
@@ -86,7 +87,7 @@ def main():
             agv1.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
         
         # time.sleep(1)
-        agv1.assign_task(Task(agv1.position, [52], type = 'TOTE_TO_PERSON', tote = Tote(unique_id=1)))
+        agv1.assign_task(Task(agv1.position, [6], type = 'TOTE_TO_PERSON', tote = Tote(unique_id=1)))
         while agv1.task.is_finished() is not True:
             agv1.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
         

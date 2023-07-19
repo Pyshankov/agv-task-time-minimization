@@ -141,7 +141,7 @@ class WarehouseGraph(object):
                 if cell_to in self.cell_mappings[cell_from_idx]:
                     for agv_idx in self.cell_mappings[cell_from_idx][cell_to].avg_utilization_slots:
                         utiliz = self.cell_mappings[cell_from_idx][cell_to].avg_utilization_slots[agv_idx]
-                        print(utiliz)
+                        # print(utiliz)
                         if utiliz.agv_id != agv_id:
                             utilizations.append(utiliz)
         return utilizations
