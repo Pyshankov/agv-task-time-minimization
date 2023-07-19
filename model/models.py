@@ -26,8 +26,8 @@ class Cell(object):
         self.x = x
         self.y = y
         self.avg_utilization_slots = {} # key value agv_id to CellUtilization
-        self.occupied_agv = None
-        
+        self.agv_id = None
+
     def __str__(self):
         return f'{self.unique_id}: {self.avg_utilization_slots}'    
   
@@ -55,10 +55,10 @@ class Utilization(object):
         self.priority = priority
     
     def __str__(self):
-        return f'time_start: {self.time_start}, time_end: {self.time_end}'    
+        return f'agv: {self.agv_id} time_start: {self.time_start}, time_end: {self.time_end}'    
 
     def str(self):
-        return f'time_start: {self.time_start}, time_end: {self.time_end}'    
+        return f'agv: {self.agv_id} time_start: {self.time_start}, time_end: {self.time_end}' 
 
 # @dataclass(frozen=True)
 class EdgeUtilization(Utilization):
@@ -67,24 +67,18 @@ class EdgeUtilization(Utilization):
         self.from_cell = from_cell
         self.to_cell = to_cell
         self.velocity = velocity
-    
+
     def __str__(self):
-        return f'time_start: {self.time_start}, time_end: {self.time_end}'    
+        return f'agv: {self.agv_id} from_cell: {self.from_cell} to_cell: {self.to_cell}  time_start: {self.time_start}, time_end: {self.time_end}'    
 
     def str(self):
-        return f'time_start: {self.time_start}, time_end: {self.time_end}'   
+        return f'agv: {self.agv_id} time_start: {self.time_start}, time_end: {self.time_end}' 
 
 # @dataclass(frozen=True)
 class CellUtilization(Utilization):
     def __init__(self, agv_id, cell_id, time_start, time_end, priority):  
         super().__init__(agv_id, time_start, time_end, priority)
         self.cell_id = cell_id
-    
-    def __str__(self):
-        return f'time_start: {self.time_start}, time_end: {self.time_end}'    
-
-    def str(self):
-        return f'time_start: {self.time_start}, time_end: {self.time_end}'   
 
 class Task(object): 
     def __init__(self, origin, destinations, tote = None, priority = 1.0, type = 'TOTE_PICKUP'):
@@ -106,22 +100,24 @@ class Task(object):
     def is_finished(self):
         return self.status == 'FINISHED'
     
-    def start(self, agv):
+    def start(self, agv, warehouse):
         if(agv.position == self.origin):
             self.status = 'IN_PROGRESS'
+            agv.ongoing_route = warehouse.bfs(agv.position, self.destinations[0])
             return True
         else:
             return False
     
-    def finish(self, agv):
-        if(len(self.destinations) == 0 and self.is_in_progress()):
+    def finish(self, agv, warehouse):
+        if(len(agv.ongoing_route) == 0 and len(self.destinations) == 0 and self.is_in_progress()):
             self.status = 'FINISHED'
             if(self.type == 'TOTE_PICKUP'):
                 agv.tote_pick(self.tote)
             elif(self.type == 'TOTE_TO_PLACEMENT'):
                 agv.tote_place()
             return True
-        elif(agv.position == self.destinations[0] and self.is_in_progress()):
-            self.destinations.pop(0)
+        elif(len(self.destinations) > 0 and len(agv.ongoing_route) == 0 and self.is_in_progress()):
+            agv.ongoing_route = warehouse.bfs(agv.position, self.destinations.pop(0))
+            return False
         return False
 

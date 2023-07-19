@@ -74,25 +74,11 @@ class WarehouseGraph(object):
             if d_edge[0] not in self.cell_mappings:
                 self.cell_mappings[d_edge[0]] = {} 
             self.cell_mappings[d_edge[0]][d_edge[1]] = DirectedEdge(self.cells[d_edge[0]], self.cells[d_edge[1]], d_edge[2]) 
-        
-        #agv_cell_utilization_slots = {} # k:cell_id -> {k:agv_id -> utilization}
-        #agv_edge_utilization_slots = {} # k:from_cell -> {k:to_cell -> {k:agv_id -> utilization}}
 
-    def lock(self):
-        self.lock.acquire() 
-    
-    def unlock(self):
-        self.lock.release() 
     
     # use to define a new utilization for AGV updated route within the shared state to use it later in route planning
-    def update_utilization(self, agv_id, cell_utilization_list, prev_cell_utilization_list, edge_utilization_list, prev_edge_utilization_list):
+    def update_utilization(self, agv_id, edge_utilization_list, prev_edge_utilization_list):
         with self.lock:
-            # remove old # remove old utolization for cells within the route for particular AGV for cells within the route for particular AGV
-            for prev_cell_util in prev_cell_utilization_list:
-                self.cells[prev_cell_util.cell_id].avg_utilization_slots.pop(agv_id) 
-            # add new utilization for cells within the route for particular AGV
-            for cell_util in cell_utilization_list:
-                self.cells[cell_util.cell_id].avg_utilization_slots[agv_id] = cell_util 
             # remove old utilization for edges within the route for particular AGV
             for prev_edge_util in prev_edge_utilization_list:
                 self.cell_mappings[prev_edge_util.from_cell][prev_edge_util.to_cell].avg_utilization_slots.pop(agv_id)
@@ -100,26 +86,22 @@ class WarehouseGraph(object):
             for edge_util in edge_utilization_list:
                 self.cell_mappings[edge_util.from_cell][edge_util.to_cell].avg_utilization_slots[agv_id] = edge_util
 
-    def occupy_singe_cell(self, agv, timestamp_from = None, cell_id = None): # consider only while 
+    def occupy_singe_cell(self, agv, cell_id): # consider only while 
         with self.lock:
-            if cell_id is None:
-                cell_id = agv.position   
-            self.cells[cell_id].avg_utilization_slots[agv.agv_id] = CellUtilization(agv.agv_id, cell_id, timestamp_from, float('inf'), 0) 
-            # if agv.position is not None:
-            #     self.cells[agv.position].occupied_agv = None
-            # agv.assign_position(cell_id)
-            # self.cells[cell_id].occupied_agv = agv
-    
-    # def check_cell_occupied(self, agv, cell_id):
-    #     with self.lock:
-    #         if self.cells[cell_id].occupied_agv is not None and self.cells[cell_id].occupied_agv.agv_id != agv.agv_id:
-    #             return True 
-    #         else:
-    #             return False
+            self.cells[cell_id].agv_id = agv.agv_id
+            agv.assign_position(cell_id)
 
-    # def update_edge_utilization(self, agv_id, cell_from, cell_to, timestamp_from, timestamp_to):
-    #     with self.lock:
-    #         self.cell_mappings[cell_from][cell_to].avg_utilization_slots[agv_id] = EdgeUtilization(agv_id, cell_from, cell_to, timestamp_from, timestamp_to, 1)
+    def cell_occupied(self, agv, cell_id):
+         with self.lock:
+            if self.cells[cell_id].agv_id is None: 
+                return False
+            else:
+                return self.cells[cell_id].agv_id != agv.agv_id    
+    
+    def cell_deoccupie(self, cell_id):
+         with self.lock:
+            self.cells[cell_id].agv_id = None
+        
     
     def get_edge_length(self, cell_from, cell_to): 
         length = 0
@@ -127,9 +109,27 @@ class WarehouseGraph(object):
             length = self.cell_mappings[cell_from][cell_to].length
         return length
 
+    def get_adjacent_cells_occupied(self, agv, cell):
+        with self.lock:
+            cell_from_list = list(self.cell_mappings.keys())
+            for cell_from in cell_from_list:
+                if cell in self.cell_mappings[cell_from]:
+                    if self.cell_occupied(agv, cell):
+                        return True
+            return False
+    
+    def get_adjacent_cell_list_occupied(self, agv, cell):
+        with self.lock:
+            li = []
+            cell_from_list = list(self.cell_mappings.keys())
+            for cell_from in cell_from_list:
+                if cell in self.cell_mappings[cell_from]:
+                    if self.cell_occupied(agv, cell):
+                        li.append(cell)
+            return li
+        
 
-
-    def get_occupied_timeslots_edges(self, agv_id, cell_from, cell_to, bidirectional = False):
+    def get_occupied_timeslots_edges(self, agv_id, cell_from, cell_to):
         utilizations = []  
         with self.lock:
             cell_from_list = []
@@ -138,12 +138,22 @@ class WarehouseGraph(object):
             else:
                 cell_from_list = [cell_from]
             for cell_from_idx in cell_from_list:
-                if cell_from_idx in self.cell_mappings[cell_from_idx]:
+                if cell_to in self.cell_mappings[cell_from_idx]:
                     for agv_idx in self.cell_mappings[cell_from_idx][cell_to].avg_utilization_slots:
                         utiliz = self.cell_mappings[cell_from_idx][cell_to].avg_utilization_slots[agv_idx]
-                        # if utiliz.agv_id != agv_id:
-                        utilizations.append(utiliz)
+                        print(utiliz)
+                        if utiliz.agv_id != agv_id:
+                            utilizations.append(utiliz)
         return utilizations
+    
+    def check_bidirectional(self, cell_to): 
+        with self.lock:
+            cell_from_list = list(self.cell_mappings.keys())
+            for cell_from in cell_from_list:
+                if cell_to in self.cell_mappings and cell_to in self.cell_mappings[cell_from] and cell_from in self.cell_mappings[cell_to]:
+                    return True
+            return False
+
 
 
     def bfs(self, origin, destination): 
