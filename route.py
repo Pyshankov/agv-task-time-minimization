@@ -18,17 +18,17 @@ from model.models import *
 from model.warehouse_graph import *
 from model.agv import *
 
-def draw_graph2(graph1, agvs, agvs2, agvs3, agvs4):
+def draw_graph2(graph1, agvs, agvs2, agvs3, agvs4, agvs5):
+    
     points = []
     positions = {}
 
     with graph1.lock:
 
         for cell in graph1.cells:
-          x = ((cell-1) % 15) 
-          y = int((cell-1)/15)
-          points.append((x,4-y))
-          positions[cell] = (x,4-y)
+            c = graph1.cells[cell]
+            points.append((c.x, c.y))
+            positions[cell] = (c.x, c.y)
 
         G = nx.DiGraph()
 
@@ -41,140 +41,115 @@ def draw_graph2(graph1, agvs, agvs2, agvs3, agvs4):
 
         color_map = []
         for node in G:
-            if graph1.cells[node].unique_id == agvs.position:
-                    color_map.append('blue') 
-            elif graph1.cells[node].unique_id == agvs2.position:
-                    color_map.append('red') 
-            elif graph1.cells[node].unique_id == agvs3.position:
-                    color_map.append('green') 
-            elif graph1.cells[node].unique_id == agvs4.position:
-                    color_map.append('#C6442A') 
+            if graph1.cells[node].type in ["OPERATOR_STATION", "TOTE_PICKUP_STATION"]:
+                    color_map.append('#e0e0eb') 
             else:
-              color_map.append('white')
+              color_map.append('#FBF8F4')
+        
+        red_edges = graph1.edges_adjecent_operator_station_only
+        black_edges = [edge for edge in G.edges() if edge not in red_edges]
 
+    G2 = nx.DiGraph()
+
+    positions2 = {}
+    color_map2 = ['blue', 'white', 'red', 'white', 'green', 'white', '#C6442A', 'white', 'yellow', 'white']
+    for agv in [agvs, agvs2, agvs3, agvs4, agvs5]:
+        positions2[agv.agv_id] = (agv.x, agv.y)
+        positions2[agv.agv_id + 10] = (agv.x + agv.heading[0], agv.y + agv.heading[1])
+        G2.add_node(agv.agv_id)
+        G2.add_node(agv.agv_id + 10)
+        add_edge_to_graph(G2, agv.agv_id, agv.agv_id + 10, 1)
+    green_edges = [edge for edge in G2.edges() if edge not in red_edges]
+             
     plt.clf()
-    nx.draw(G, pos=positions, node_size=500, node_color=color_map, arrows=True)
-    nx.draw_networkx_labels(G, pos=positions)
+
+    nx.draw_networkx_nodes(G, pos=positions, node_size=300, node_color=color_map)
+    # nx.draw_networkx_labels(G, pos=positions)
+
+    nx.draw_networkx_edges(G, pos=positions, edgelist=red_edges, edge_color='r', arrows=True)
+    nx.draw_networkx_edges(G, pos=positions, edgelist=black_edges,edge_color='#7D7C7A', arrows=True)
+
+    nx.draw_networkx_nodes(G2, pos=positions2, node_size=400,node_shape="s", node_color = color_map2)
+    # nx.draw_networkx_labels(G2, pos=positions2)
+    nx.draw_networkx_edges(G, pos=positions2, edgelist=green_edges, edge_color='g', arrows=True)
+
     plt.show()
     plt.pause(0.001)
 
 def main():
     graph1 = build_graph_v2()
-    print(graph1.check_bidirectional(30))
+
 
     plt.rcParams["figure.autolayout"] = True
     plt.ion()   
 
     agv1 = AGV(agv_id = 0) # blue
     graph1.occupy_singe_cell(agv1, cell_id=30)
+    task_list1 = [
+        Task(agv1.position, [9], type = 'TOTE_PICKUP', tote = Tote(unique_id=1) ),
+        Task(9, [48, 54, 57], type = 'TOTE_TO_PERSON'), 
+        Task(57, [9], type = 'TOTE_TO_PLACEMENT'),
+        Task(9, [agv1.position], type = 'REST_AREA')
+    ]
 
     agv2 = AGV(agv_id = 1) # red
     graph1.occupy_singe_cell(agv2, cell_id=45)
+    task_list2 = [
+        Task(agv2.position, [9], type = 'TOTE_PICKUP', tote = Tote(unique_id=2) ),
+        Task(9, [51], type = 'TOTE_TO_PERSON'), 
+        Task(51, [9], type = 'TOTE_TO_PLACEMENT'),
+        Task(9, [agv2.position], type = 'REST_AREA')
+    ]
 
     agv3 = AGV(agv_id = 2) # green
     graph1.occupy_singe_cell(agv3, cell_id=44)
+    task_list3 = [
+        Task(agv3.position, [6], type = 'TOTE_PICKUP', tote = Tote(unique_id=2) ),
+        Task(6, [48, 54], type = 'TOTE_TO_PERSON'), 
+        Task(54, [6], type = 'TOTE_TO_PLACEMENT'),
+        Task(6, [agv3.position], type = 'REST_AREA')
+    ]
 
     agv4 = AGV(agv_id = 3) # yellow
     graph1.occupy_singe_cell(agv4, cell_id=59)
+    task_list4 = [
+        Task(agv4.position, [6], type = 'TOTE_PICKUP', tote = Tote(unique_id=3) ),
+        Task(6, [57], type = 'TOTE_TO_PERSON'), 
+        Task(57, [6], type = 'TOTE_TO_PLACEMENT'),
+        Task(6, [agv4.position], type = 'REST_AREA')
+    ]
 
+    agv5 = AGV(agv_id = 4) # yellow
+    graph1.occupy_singe_cell(agv5, cell_id=60)
+    task_list5 = [
+        Task(agv5.position, [9], type = 'TOTE_PICKUP', tote = Tote(unique_id=4) ),
+        Task(9, [48, 54, 57], type = 'TOTE_TO_PERSON'), 
+        Task(57, [9], type = 'TOTE_TO_PLACEMENT'),
+        Task(9, [agv5.position], type = 'REST_AREA')
+    ]
 
-    draw_graph2(graph1, agv1, agv2, agv3, agv4)
+    draw_graph2(graph1, agv1, agv2, agv3, agv4, agv5)
 
-
-    def start1():
-        agv1.assign_task(Task(agv1.position, [9], type = 'TOTE_PICKUP', tote = Tote(unique_id=1) ))
-        while agv1.task.is_finished() is not True:
-            agv1.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
+    def start1(graph, agv, task_list):
+        # graph, agv, task_list = args
+        while len(task_list) > 0:
+            print(len(task_list))
+            agv.assign_task(task_list.pop(0))
+            time.sleep(1)  # wait 1 sec between tasks
+            while agv.task.is_finished() is not True:
+                agv.execute_task(graph, start_milis = int(round(time.time() * 1000)))
+        sys.exit()
         
-        # time.sleep(1)
-        agv1.assign_task(Task(agv1.position, [6], type = 'TOTE_TO_PERSON', tote = Tote(unique_id=1)))
-        while agv1.task.is_finished() is not True:
-            agv1.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-        
-        # time.sleep(1)
-        agv1.assign_task(Task(agv1.position, [9], type = 'TOTE_TO_PLACEMENT', tote = Tote(unique_id=1)))
-        while agv1.task.is_finished() is not True:
-            agv1.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-        
-        # time.sleep(1)
-        agv1.assign_task(Task(agv1.position, [30], type = 'REST_AREA', tote = Tote(unique_id=1)))
-        while agv1.task.is_finished() is not True:
-            agv1.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-
-    
-    def start2():
-        agv2.assign_task(Task(agv2.position, [6], type = 'TOTE_PICKUP', tote = Tote(unique_id=2) ))
-        while agv2.task.is_finished() is not True:
-            agv2.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-        
-        # time.sleep(1)
-        agv2.assign_task(Task(agv2.position, [52], type = 'TOTE_TO_PERSON', tote = Tote(unique_id=1) ))
-        while agv2.task.is_finished() is not True:
-            agv2.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-
-        # time.sleep(1)
-        agv2.assign_task(Task(agv2.position, [6], type = 'TOTE_TO_PLACEMENT', tote = Tote(unique_id=1)))
-        while agv2.task.is_finished() is not True:
-            agv2.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-
-        # time.sleep(1)
-        agv2.assign_task(Task(agv2.position, [45], type = 'REST_AREA', tote = Tote(unique_id=1)))
-        while agv2.task.is_finished() is not True:
-            agv2.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-
-    def start3():
-        agv3.assign_task(Task(agv3.position, [6], type = 'TOTE_PICKUP', tote = Tote(unique_id=2) ))
-        while agv3.task.is_finished() is not True:
-            agv3.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-        
-        # time.sleep(1)
-        agv3.assign_task(Task(agv3.position, [52], type = 'TOTE_TO_PERSON', tote = Tote(unique_id=1) ))
-        while agv3.task.is_finished() is not True:
-            agv3.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-
-        # time.sleep(1)
-        agv3.assign_task(Task(agv3.position, [6], type = 'TOTE_TO_PLACEMENT', tote = Tote(unique_id=1)))
-        while agv3.task.is_finished() is not True:
-            agv3.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-
-        # time.sleep(1)
-        agv3.assign_task(Task(agv3.position, [60], type = 'REST_AREA', tote = Tote(unique_id=1)))
-        while agv3.task.is_finished() is not True:
-            agv3.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-
-
-
-    def start4():
-        agv4.assign_task(Task(agv4.position, [6], type = 'TOTE_PICKUP', tote = Tote(unique_id=2) ))
-        while agv4.task.is_finished() is not True:
-            agv4.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-        
-        # time.sleep(1)
-        agv4.assign_task(Task(agv4.position, [52], type = 'TOTE_TO_PERSON', tote = Tote(unique_id=1) ))
-        while agv4.task.is_finished() is not True:
-            agv4.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-
-        # time.sleep(1)
-        agv4.assign_task(Task(agv4.position, [6], type = 'TOTE_TO_PLACEMENT', tote = Tote(unique_id=1)))
-        while agv4.task.is_finished() is not True:
-            agv4.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-
-        # time.sleep(1)
-        agv4.assign_task(Task(agv4.position, [59], type = 'REST_AREA', tote = Tote(unique_id=1)))
-        while agv4.task.is_finished() is not True:
-            agv4.execute_task(graph1, start_milis = int(round(time.time() * 1000)))
-
-    Thread(target = start4).start()
-    Thread(target = start3).start()
-    Thread(target = start2).start()
-    Thread(target = start1).start()
-    
+    # input("Press Enter to continue...")
+    Thread(target = start1, args = (graph1, agv1, task_list1)).start()
+    Thread(target = start1, args = (graph1, agv2, task_list2)).start()
+    Thread(target = start1, args = (graph1, agv3, task_list3)).start()
+    Thread(target = start1, args = (graph1, agv4, task_list4)).start()
+    Thread(target = start1, args = (graph1, agv5, task_list5)).start()
 
     while True:
-            draw_graph2(graph1, agv1, agv2, agv3, agv4)
-            print()
-
-
+            draw_graph2(graph1, agv1, agv2, agv3, agv4, agv5)
+    
 
 if __name__ == '__main__':
     sys.exit(main())

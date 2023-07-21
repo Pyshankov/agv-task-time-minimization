@@ -14,19 +14,34 @@ from threading import RLock
 # from model.agv import *
 from dataclasses import dataclass
 
+
+# constants
+DEFAULT_PADDING = 0.1
+
+TOTE_LENGTH_M = 0.7
+TOTE_WIDTH_M = 0.7
+
+AGV_MAX_SPEED_M_S = 1
+AGV_ROTATION_DEGREE_PER_S = 1.0 / 90
+AGV_LENGTH_M = TOTE_LENGTH_M * (1 + DEFAULT_PADDING) #0.77
+AGV_WIDTH_M = TOTE_WIDTH_M * (1 + DEFAULT_PADDING) #0.77
+
+MIN_CELL_DIAMETER_M = math.sqrt(AGV_LENGTH_M * AGV_LENGTH_M + AGV_WIDTH_M * AGV_WIDTH_M) + DEFAULT_PADDING # ~1.2
+EDGE_LENGTH_M = MIN_CELL_DIAMETER_M * 2
+
 # @dataclass(frozen=True)
 class Tote(object): 
     def __init__(self, unique_id):
         self.unique_id = unique_id
     
 class Cell(object): 
-    def __init__(self, unique_id, length = 1.5,  x = 0, y = 0):
+    def __init__(self, unique_id,  x = 0, y = 0):
         self.unique_id = unique_id
-        self.length = length
         self.x = x
         self.y = y
         self.avg_utilization_slots = {} # key value agv_id to CellUtilization
         self.agv_id = None
+        self.type = "INTERSECTION" # "TOTE_PICKUP_STATION", "OPERATOR_STATION", "INTERSECTION"
 
     def __str__(self):
         return f'{self.unique_id}: {self.avg_utilization_slots}'    
@@ -38,6 +53,7 @@ class DirectedEdge(object):
         self.cell_to = cell_to
         self.weight = weight # length in m
         self.length = weight
+        self.type = "REGULAR" # "REGULAR", "ADJACENT_OPERATOR_STATION_ONLY"
         self.avg_utilization_slots = {} # key value agv_id to EdgeUtilization
 
     def __str__(self):

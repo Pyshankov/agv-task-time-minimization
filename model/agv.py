@@ -9,10 +9,10 @@ from model.warehouse_graph import *
 import math
 
 
+
 class AGV(object): 
-    MAX_VELOCITY = 1
-    LENGTH = 0.5
-    WIDTH = 0.5
+    MAX_VELOCITY = AGV_MAX_SPEED_M_S
+
     def __init__(self, agv_id = 0, task = None, velocity = 0.0, time_projection_coeficiient = 1.05): 
         self.agv_id = agv_id
         self.task = task
@@ -21,7 +21,26 @@ class AGV(object):
         self.ongoing_route = []
         self.time_projection_coeficiient = time_projection_coeficiient
         self.tote = None
-        self.position = None # cell_id
+
+        # localization
+        self.position = None # graph cell_id for localization and intersection 
+        self.x = None # position x in m
+        self.y = None # position y in m
+        self.heading = (1, 0) # default towards positive x axis, so 0 degree
+
+    def calculate_rotation_angel(self, directed_edge): 
+        def unit_vector(vector):
+            return vector / np.linalg.norm(vector)  
+        def rotate_vector(vector, angle):
+            x = int(vector[0] * math.cos(angle) - vector[1] * math.sin(angle))
+            y = int(vector[0] * math.sin(angle) + vector[1] * math.cos(angle))
+            return (x, y)
+        edge_direction = (directed_edge.cell_to.x - directed_edge.cell_from.x, directed_edge.cell_to.y - directed_edge.cell_from.y)
+        robot_ang_rad = np.arctan2(self.heading[1], self.heading[0])
+        direction_ang_rad = np.arctan2(edge_direction[1], edge_direction[0])
+        delta = robot_ang_rad - direction_ang_rad
+        return [rotate_vector(self.heading, -delta), -delta * 180 / math.pi]
+
 
     def assign_position(self, new_cell_id):
         self.position = new_cell_id
@@ -57,7 +76,7 @@ class AGV(object):
         ut = ''
         if(len(self.edge_utilization_list) > 0):
             ut = self.edge_utilization_list[0]
-        print(f'time:{start_milis} agv: {self.agv_id} velocity: {self.velocity}, position: {self.position}, route: {self.ongoing_route}, util: {ut}')
+        print(f'time:{start_milis} agv: {self.agv_id} velocity: {self.velocity}, heading: {self.heading}, position: {self.position}, route: {self.ongoing_route}, util: {ut}')
 
         with warehouse_graph.lock:
             new_edge_utils = []
@@ -74,6 +93,8 @@ class AGV(object):
             length_m = warehouse_graph.get_edge_length(self.position, next_cell)
             time_end = None
             new_velocity = None
+            new_heading, angel_deg = self.calculate_rotation_angel(warehouse_graph.get_edge(self.position,next_cell))
+            rotation_time = abs(angel_deg * AGV_ROTATION_DEGREE_PER_S) * 1000
             # procceed = True
             # next cell is occuiped, agv have to wait
             if warehouse_graph.cell_occupied(self, next_cell):  
@@ -96,7 +117,7 @@ class AGV(object):
                 if next_next_cell is not None: 
                     
                     #case when it's dock point
-                    if self.position in [3, 6, 9, 12]\
+                    if self.position in warehouse_graph.tote_pickup_stations\
                         and (len(warehouse_graph.get_occupied_timeslots_edges(self.agv_id, None, next_cell)) > 0\
                         or len(warehouse_graph.get_occupied_timeslots_edges(self.agv_id, None, next_next_cell)) > 0):
                         time_end = float('inf')
@@ -135,16 +156,19 @@ class AGV(object):
                                     time_end = util.time_end
                         new_velocity = float(length_m) / (time_end - start_milis)
 
-            new_edge_utils.append(EdgeUtilization(self.agv_id, new_velocity, self.position, next_cell, start_milis, time_end))            
+            new_edge_utils.append(EdgeUtilization(self.agv_id, new_velocity, self.position, next_cell, start_milis, time_end + rotation_time))            
             self.velocity = new_velocity
             prev_edge_utilization_list = self.edge_utilization_list
             self.edge_utilization_list = new_edge_utils
             warehouse_graph.update_utilization(self.agv_id, new_edge_utils, prev_edge_utilization_list)
 
+        time.sleep(rotation_time/1000)
+        self.heading = new_heading
+
         if self.velocity > 0.0 : 
             util = self.edge_utilization_list[0]
             time1 = (util.time_end - util.time_start)/1000
-            time.sleep(time1)
+            time.sleep(time1 - rotation_time/1000)
             with warehouse_graph.lock:
                 warehouse_graph.cell_deoccupie(self.position)
                 warehouse_graph.occupy_singe_cell(self, util.to_cell)
