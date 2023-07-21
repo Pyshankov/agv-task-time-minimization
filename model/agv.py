@@ -41,6 +41,8 @@ class AGV(object):
         delta = robot_ang_rad - direction_ang_rad
         return [rotate_vector(self.heading, -delta), -delta * 180 / math.pi]
 
+    def is_busy(self):
+        return self.task is not None and self.task.is_finished() is False
 
     def assign_position(self, new_cell_id):
         self.position = new_cell_id
@@ -57,6 +59,9 @@ class AGV(object):
     def tote_place(self): 
         self.tote = None
     
+    # TODO: 
+    # 1. include AGV length and width into route planning
+    # 2. approach change in velocity as a smooth function 
     def execute_task(self, warehouse_graph, start_milis): 
         if self.task is None or self.task.is_finished(): 
             # print("none")
@@ -127,8 +132,7 @@ class AGV(object):
                     # and another agv from doc not started moving yet - we can bypass
                     elif warehouse_graph.check_bidirectional(next_cell)\
                         and warehouse_graph.check_bidirectional(next_next_cell) is False\
-                        and len(warehouse_graph.get_occupied_timeslots_edges(self.agv_id, None, next_cell)) == 0\
-                        and self.ongoing_route[-1]:
+                        and len(warehouse_graph.get_occupied_timeslots_edges(self.agv_id, None, next_cell)) == 0:
                             time_end = start_milis + (length_m / AGV.MAX_VELOCITY) * 1000 
                             new_velocity = AGV.MAX_VELOCITY
 
@@ -162,9 +166,11 @@ class AGV(object):
             self.edge_utilization_list = new_edge_utils
             warehouse_graph.update_utilization(self.agv_id, new_edge_utils, prev_edge_utilization_list)
 
+        # rotate towards a new direction
         time.sleep(rotation_time/1000)
         self.heading = new_heading
 
+        # move the vehicle
         if self.velocity > 0.0 : 
             util = self.edge_utilization_list[0]
             time1 = (util.time_end - util.time_start)/1000
