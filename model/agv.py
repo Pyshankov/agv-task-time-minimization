@@ -13,8 +13,9 @@ import math
 class AGV(object): 
     MAX_VELOCITY = AGV_MAX_SPEED_M_S
 
-    def __init__(self, agv_id = 0, task = None, velocity = 0.0, time_projection_coeficiient = 1.05): 
+    def __init__(self, agv_id = 0, task = None, velocity = 0.0, time_projection_coeficiient = 1.05, color = 'blue'): 
         self.agv_id = agv_id
+        self.color = color 
         self.task = task
         self.velocity = velocity #avg veloity m/s for vehicle while moving (could be described as a function which  inludes accelertion as well)
         self.edge_utilization_list = []
@@ -60,9 +61,9 @@ class AGV(object):
         self.tote = None
     
     # TODO: 
-    # 1. include AGV length and width into route planning
-    # 2. approach change in velocity as a smooth function 
-    def execute_task(self, warehouse_graph, start_milis): 
+    # 1. include AGV length and width into route planning (usefull when edge length is bigger than MIN_CELL_DIAMETER_M )
+    # 2. approach change in velocity as a smooth function (part of the actuall physical agv move)
+    def execute_task(self, warehouse_graph, start_milis, moving_update_rate = 3): 
         if self.task is None or self.task.is_finished(): 
             # print("none")
             # no task, no actions
@@ -81,7 +82,8 @@ class AGV(object):
         ut = ''
         if(len(self.edge_utilization_list) > 0):
             ut = self.edge_utilization_list[0]
-        print(f'time:{start_milis} agv: {self.agv_id} velocity: {self.velocity}, heading: {self.heading}, position: {self.position}, route: {self.ongoing_route}, util: {ut}')
+            print(f'time:{start_milis} agv: {self.agv_id} velocity: {self.velocity}, heading: {self.heading}, position: {self.position}, route: {self.ongoing_route}, util: {ut}')
+
 
         with warehouse_graph.lock:
             new_edge_utils = []
@@ -99,7 +101,11 @@ class AGV(object):
             time_end = None
             new_velocity = None
             new_heading, angel_deg = self.calculate_rotation_angel(warehouse_graph.get_edge(self.position,next_cell))
+            #avoid longer path for rotation
+            angel_deg = angel_deg if angel_deg <=180 else angel_deg - 360
+
             rotation_time = abs(angel_deg * AGV_ROTATION_DEGREE_PER_S) * 1000
+
             # procceed = True
             # next cell is occuiped, agv have to wait
             if warehouse_graph.cell_occupied(self, next_cell):  
@@ -139,8 +145,7 @@ class AGV(object):
                     # another agv from doc station shared an intent to use the road, awaiting
                     elif warehouse_graph.check_bidirectional(next_cell)\
                         and warehouse_graph.check_bidirectional(next_next_cell) is False\
-                        and len(warehouse_graph.get_occupied_timeslots_edges(self.agv_id, None, next_cell)) > 0\
-                        and self.ongoing_route[-1]:
+                        and len(warehouse_graph.get_occupied_timeslots_edges(self.agv_id, None, next_cell)) > 0:
                         time_end = float('inf')
                         new_velocity = 0.0
 
@@ -165,20 +170,32 @@ class AGV(object):
             prev_edge_utilization_list = self.edge_utilization_list
             self.edge_utilization_list = new_edge_utils
             warehouse_graph.update_utilization(self.agv_id, new_edge_utils, prev_edge_utilization_list)
-
+        
+        # moving logic, could be a separate method which has to be executed immidiatelly after weight update
         # rotate towards a new direction
+        
         time.sleep(rotation_time/1000)
         self.heading = new_heading
-
         # move the vehicle
-        if self.velocity > 0.0 : 
+        if self.velocity > 0.0: 
             util = self.edge_utilization_list[0]
             time1 = (util.time_end - util.time_start)/1000
-            time.sleep(time1 - rotation_time/1000)
+            moving_time = time1 - rotation_time/1000
+            de = warehouse_graph.get_edge(self.position,next_cell)
+            dist = (de.cell_to.x - de.cell_from.x, de.cell_to.y - de.cell_from.y)
+
+            for i in range(0, moving_update_rate):
+                self.x = self.x + dist[0] / moving_update_rate
+                self.y = self.y + dist[1] / moving_update_rate
+                time.sleep(moving_time / moving_update_rate)
+
             with warehouse_graph.lock:
                 warehouse_graph.cell_deoccupie(self.position)
                 warehouse_graph.occupy_singe_cell(self, util.to_cell)
             self.ongoing_route.pop(0)
+        else:
+            time.sleep(0.3) # to avoid accessive lock concurrency or use print function to block thread for writing
+
 
         return self.ongoing_route
         

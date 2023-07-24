@@ -7,67 +7,6 @@ import  heapq
 import json
 from model.models import *
 
-def build_graph_v2(): 
-    cell_indx = range(1,61)
-    directed_edges = []
-
-    directed_edges.append((3, 18, 1))
-    directed_edges.append((18, 3, 1))
-    directed_edges.append((6, 21, 1))
-    directed_edges.append((21, 6, 1))
-    directed_edges.append((9, 24, 1))
-    directed_edges.append((24, 9, 1))
-    directed_edges.append((12, 27, 1))
-    directed_edges.append((27, 12, 1))
-
-        # to left only:  
-    for idx in range (17,31): 
-        directed_edges.append((idx, idx - 1, 1))
-
-    # to right:  
-    for idx in range (47,61): 
-        directed_edges.append((idx - 1, idx, 1))
-    
-    # to right:  
-    for idx in range (32,46): 
-        directed_edges.append((idx - 1, idx, 1))
-
-    directed_edges.append((34, 19, 1))
-    directed_edges.append((16, 31, 1))
-    directed_edges.append((20, 35, 1))
-    directed_edges.append((37, 22, 1))
-    directed_edges.append((23, 38, 1))
-    directed_edges.append((40, 25, 1))
-    directed_edges.append((26, 41, 1))
-    directed_edges.append((43, 28, 1))
-    directed_edges.append((44, 29, 1))
-    directed_edges.append((45, 30, 1))
-
-    directed_edges.append((31, 46, 1))
-    directed_edges.append((48, 33, 1))
-    directed_edges.append((35, 50, 1))    
-    directed_edges.append((51, 36, 1))
-    directed_edges.append((38, 53, 1))
-    directed_edges.append((54, 39, 1))
-    directed_edges.append((41, 56, 1))
-    directed_edges.append((57, 42, 1))
-    directed_edges.append((58, 43, 1))
-    directed_edges.append((59, 44, 1))
-    directed_edges.append((60, 45, 1))
-
-    graph = WarehouseGraph(cells = cell_indx, \
-        directed_edges = directed_edges, \
-        operator_stations = [48, 51, 54, 57], \
-        tote_pickup_stations = [3, 6, 9, 12], \
-        edges_adjecent_operator_station_only = [(48, 49), (51, 52), (54, 55)]\
-            )
-
-    for idx in graph.tote_pickup_stations:
-        graph.cells[idx].tote = Tote(idx)
-        graph.cells[idx].occupied_tote = True
-
-    return  graph
-
 class WarehouseGraph(object): 
     def __init__(self, shape = (15, 4), cells = range(1,4), operator_stations = [1,2], tote_pickup_stations = [2], directed_edges = [(1,2, 10.0), (2,3, 50.0), (1,3, 10.0)], edges_adjecent_operator_station_only = [(1,2)]):
         self.shape = shape # columns, rows, cell_ids in ascending order

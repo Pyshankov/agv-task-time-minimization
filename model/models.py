@@ -101,6 +101,7 @@ class Task(object):
         self.type = type # TOTE_TO_PERSON, TOTE_TO_PLACEMENT, TOTE_PICKUP, REST_AREA
         self.origin = origin
         self.destinations = destinations
+        self.destinations1 = destinations.copy()
         self.priority = priority
         self.status = 'PENDING' #  PENDING, IN_PROGRESS, FINISHED
         self.tote = tote
@@ -118,9 +119,14 @@ class Task(object):
     
     def start(self, agv, warehouse):
         if(agv.position == self.origin):
-            self.status = 'IN_PROGRESS'
             agv.ongoing_route = warehouse.bfs(agv.position, self.destinations[0])
-            return True
+            print(f'AGV: {agv.agv_id}:{agv.color} starting: {agv.ongoing_route} from:{agv.position} to: {self.destinations[0]}')
+            if(len(agv.ongoing_route) > 0):
+                self.status = 'IN_PROGRESS'
+                return True
+            else: 
+                str = f"Sorry, bfs can't buid a road between {agv.position}  and  {self.destinations[0]}"
+                raise Exception(str)
         else:
             return False
     
@@ -131,6 +137,7 @@ class Task(object):
                 agv.tote_pick(self.tote)
             elif(self.type == 'TOTE_TO_PLACEMENT'):
                 agv.tote_place()
+            print(f"AGV: {agv.agv_id}:{agv.color} finished: {agv.ongoing_route} from:{self.origin} to: {self.destinations1}")
             return True
         elif(len(self.destinations) > 0 and len(agv.ongoing_route) == 0 and self.is_in_progress()):
             agv.ongoing_route = warehouse.bfs(agv.position, self.destinations.pop(0))
