@@ -22,7 +22,7 @@ from model.agv import *
 def main():
     graph1 = build_graph_n_stations(4)
 
-    plt.rcParams["figure.figsize"] = [17, 4]
+    plt.rcParams["figure.figsize"] = [17, 6]
     plt.rcParams["figure.autolayout"] = True
     plt.ion()   
 
@@ -41,23 +41,25 @@ def main():
         Task(agv2.position, [9], type = 'TOTE_PICKUP', tote = Tote(unique_id=2) ),
         Task(9, [51], type = 'TOTE_TO_PERSON'), 
         Task(51, [9], type = 'TOTE_TO_PLACEMENT'),
-
         Task(9, [51], type = 'TOTE_TO_PERSON'), 
         Task(51, [9], type = 'TOTE_TO_PLACEMENT'),
         Task(9, [agv2.position], type = 'REST_AREA')
     ]
 
     agv3 = AGV(agv_id = 2, color = 'green') 
-    graph1.occupy_singe_cell(agv3, cell_id=44)
+    graph1.occupy_singe_cell(agv3, cell_id=59)
     task_list3 = [
         Task(agv3.position, [6], type = 'TOTE_PICKUP', tote = Tote(unique_id=2) ),
         Task(6, [48, 54], type = 'TOTE_TO_PERSON'), 
         Task(54, [6], type = 'TOTE_TO_PLACEMENT'),
-        Task(6, [agv3.position], type = 'REST_AREA')
+        Task(6, [9], type = 'TOTE_PICKUP', tote = Tote(unique_id=2) ),
+        Task(9, [48, 54], type = 'TOTE_TO_PERSON'), 
+        Task(54, [9], type = 'TOTE_TO_PLACEMENT'),
+        Task(9, [agv3.position], type = 'REST_AREA')
     ]
 
     agv4 = AGV(agv_id = 3, color = 'yellow')
-    graph1.occupy_singe_cell(agv4, cell_id=59)
+    graph1.occupy_singe_cell(agv4, cell_id=60)
     task_list4 = [
         Task(agv4.position, [6], type = 'TOTE_PICKUP', tote = Tote(unique_id=3) ),
         Task(6, [57], type = 'TOTE_TO_PERSON'), 
@@ -65,16 +67,8 @@ def main():
         Task(6, [agv4.position], type = 'REST_AREA')
     ]
 
-    agv5 = AGV(agv_id = 4, color = '#C6442A')
-    graph1.occupy_singe_cell(agv5, cell_id=60)
-    task_list5 = [
-        Task(agv5.position, [9], type = 'TOTE_PICKUP', tote = Tote(unique_id=4) ),
-        Task(9, [48, 54, 57], type = 'TOTE_TO_PERSON'), 
-        Task(57, [9], type = 'TOTE_TO_PLACEMENT'),
-        Task(9, [agv5.position], type = 'REST_AREA')
-    ]
 
-    draw_graph(graph1, [agv1, agv2, agv3, agv4, agv5])
+    draw_graph(graph1, [agv1, agv2, agv3, agv4])
 
     def start_agv(graph, agv, task_list):
         while len(task_list) > 0:
@@ -89,14 +83,14 @@ def main():
             draw_graph(graph, agvs)
          
 
-    input("Press Enter to continue...")
+    # input("Press Enter to continue...")
+    # time.sleep(10)
     Thread(target = start_agv, args = (graph1, agv1, task_list1)).start()
     Thread(target = start_agv, args = (graph1, agv2, task_list2)).start()
     Thread(target = start_agv, args = (graph1, agv3, task_list3)).start()
     Thread(target = start_agv, args = (graph1, agv4, task_list4)).start()
-    Thread(target = start_agv, args = (graph1, agv5, task_list5)).start()
 
-    Thread(target = start_visualization, args = (graph1, [agv1, agv2, agv3, agv4, agv5])).run()
+    Thread(target = start_visualization, args = (graph1, [agv1, agv2, agv3, agv4])).run()
     
 
 if __name__ == '__main__':

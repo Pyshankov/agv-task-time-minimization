@@ -22,6 +22,7 @@ from model.agv import *
 def generate_and_execute_task(agv, init_position, warehouse, pickup_location = None, task_number = 0, max_tasks = 10): 
     pickup_location = random.choice(warehouse.tote_pickup_stations) if pickup_location is None else pickup_location
     if agv.task is None or (agv.task.type == "TOTE_TO_PLACEMENT" and agv.task.is_finished): 
+        pickup_location = random.choice(warehouse.tote_pickup_stations)
         task = Task(agv.position, [pickup_location], type = 'TOTE_PICKUP', tote = Tote(unique_id=1) )
         agv.assign_task(task)
 
@@ -34,7 +35,6 @@ def generate_and_execute_task(agv, init_position, warehouse, pickup_location = N
     elif agv.task.type == "TOTE_TO_PERSON" and agv.task.is_finished:
         task = Task(agv.position, [pickup_location], type = 'TOTE_TO_PLACEMENT' )
         agv.assign_task(task)
-
 
     elif agv.task.type == "TOTE_TO_PLACEMENT" and agv.task.is_finished:
         if(task_number >= max_tasks - 1):
@@ -52,8 +52,12 @@ def start_agv(agv, init_position, warehouse):
      task_number = 0
      task_type, pickup_location = generate_and_execute_task(agv, init_position, warehouse, pickup_location = None, task_number = task_number, max_tasks = 10)
      while task_type != "REST_AREA":
+         print()
+         print(task_number)
+         print()
          task_number = task_number + 1
          task_type, pickup_location = generate_and_execute_task(agv, init_position, warehouse, pickup_location = pickup_location, task_number = task_number, max_tasks = 10)
+     sys.exit()
 
 def start_visualization(graph, agvs):
          while True:

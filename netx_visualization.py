@@ -51,7 +51,12 @@ def draw_graph(graph, agvs):
         positions2 = {}
         edge_agv_route_map = {}
         agv_color_map = []
+        strshow = ""
         for agv in agvs:
+            strshow = strshow + f'\n AGV {agv.agv_id}:{agv.color} '
+            if agv.task is not None:
+                strshow = strshow + f'| TASK: {agv.task.type} {agv.task.status} from:{agv.task.origin} to:{agv.task.destinations1}'
+
             positions2[agv.agv_id] = (agv.x, agv.y)
             positions2[agv.agv_id + 100] = (agv.x + agv.heading[0], agv.y + agv.heading[1])
             G2.add_node(agv.agv_id)
@@ -76,6 +81,7 @@ def draw_graph(graph, agvs):
     for color in edge_agv_route_map:
         nx.draw_networkx_edges(G, pos=positions, edgelist=edge_agv_route_map[color], width=2, edge_color=color,style='dashed', arrows=True)
     nx.draw_networkx_edges(G2, pos=positions2, edgelist=heading_edges, edge_color='#420420', arrows=True)
-    # plt.set_title('Title for NetworkX', loc='right')
+
+    plt.gca().set_title(strshow, loc='left')
     plt.show()
     plt.pause(0.001)
