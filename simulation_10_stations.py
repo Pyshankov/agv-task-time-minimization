@@ -22,7 +22,6 @@ from model.agv import *
 def generate_and_execute_task(agv, init_position, warehouse, pickup_location = None, task_number = 0, max_tasks = 10): 
     pickup_location = random.choice(warehouse.tote_pickup_stations) if pickup_location is None else pickup_location
     if agv.task is None or (agv.task.type == "TOTE_TO_PLACEMENT" and agv.task.is_finished): 
-        pickup_location = random.choice(warehouse.tote_pickup_stations)
         task = Task(agv.position, [pickup_location], type = 'TOTE_PICKUP', tote = Tote(unique_id=1) )
         agv.assign_task(task)
 
@@ -42,7 +41,8 @@ def generate_and_execute_task(agv, init_position, warehouse, pickup_location = N
         else:
             task = Task(agv.position, [pickup_location], type = 'TOTE_PICKUP', tote = Tote(unique_id=1) )
         agv.assign_task(task)
-         
+
+    time.sleep(1)  
     while agv.task.is_finished() is not True:
         agv.execute_task(warehouse, start_milis = int(round(time.time() * 1000)))
     
@@ -51,10 +51,7 @@ def generate_and_execute_task(agv, init_position, warehouse, pickup_location = N
 def start_agv(agv, init_position, warehouse): 
      task_number = 0
      task_type, pickup_location = generate_and_execute_task(agv, init_position, warehouse, pickup_location = None, task_number = task_number, max_tasks = 10)
-     while task_type != "REST_AREA":
-         print()
-         print(task_number)
-         print()
+     while task_number < 10:
          task_number = task_number + 1
          task_type, pickup_location = generate_and_execute_task(agv, init_position, warehouse, pickup_location = pickup_location, task_number = task_number, max_tasks = 10)
      sys.exit()
@@ -62,29 +59,29 @@ def start_agv(agv, init_position, warehouse):
 def start_visualization(graph, agvs):
          while True:
             time.sleep(0.2)
-            draw_graph(graph, agvs)
+            draw_graph(graph, agvs, 18 * 2.3)
 
 def main():
-    n = 4
+    n = 10
     graph1 = build_graph_n_stations(n)
-    colors = ["blue", "red", "yellow", "green"]
-    init_positions = [30, 45, 60, 44]
+    colors = ["blue", "red", "yellow", "green", "cyan", "pink", "brown", "olive", "maroon", "orange"]
+    init_positions = [66, 99, 132, 131, 98, 65, 64, 97, 130, 96]
     agvs = []
     for id in range(0, n):
         agv = AGV(agv_id = id, color = colors[id]) 
         graph1.occupy_singe_cell(agv, cell_id=init_positions[id])
         agvs.append(agv)
 
-    plt.rcParams["figure.figsize"] = [17, 4]
+    plt.rcParams["figure.figsize"] = [17, 8]
     plt.rcParams["figure.autolayout"] = True
     plt.ion()   
 
-    # draw_graph(graph1, agvs)
-
+    draw_graph(graph1, agvs, 18 * 10 / 4)
+    # time.sleep(10)
     for agv in agvs:
         Thread(target = start_agv, args = (agv, agv.position, graph1)).start()
 
-    # Thread(target = start_visualization, args = (graph1, agvs)).run()
+    Thread(target = start_visualization, args = (graph1, agvs)).run()
 
 
 if __name__ == '__main__':
